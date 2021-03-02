@@ -12,6 +12,30 @@ Lexer lexer;
 			currToken=lexer.get_next_token();
 			
 		}
+	public AST.ProcedureCall proccall_statement() {
+
+	    Token token = currToken;
+
+	   String proc_name = currToken.value;
+	  eat(Type.ID);
+	    eat(Type.LPAREN);
+	    ArrayList<AST.Node> actual_params = new ArrayList<>();
+	    if (currToken.t != Type.RPAREN) {
+	        AST.Node node = expr();
+	        actual_params.add(node);
+	    }
+
+	    while (currToken.t  == Type.COMMA) {
+	       eat(Type.COMMA);
+	        AST.Node node = expr();
+	        actual_params.add(node);
+	    }
+	    eat(Type.RPAREN);
+
+	    AST.ProcedureCall node = new AST.ProcedureCall
+	    		( proc_name, actual_params, token);
+	    return node;
+	}
 	public AST.Block block(){
 	   // """block : declarations compound_statement"""
 		ArrayList<AST.Node>  declaration_nodes =this.declarations();
@@ -67,24 +91,33 @@ Lexer lexer;
         }
     }
     while (currToken.t == Type.PROCEDURE) {
-       eat(Type.PROCEDURE);
-        String proc_name = currToken.value;
-        eat(Type.ID);
-       
-        ArrayList<AST.Param> params= new ArrayList<>();
-        if(currToken.t==Type.LPAREN) {
-        	eat(Type.LPAREN);
-        	System.out.println("hey");
-        	params=formal_parameter_list();
-        	eat(Type.RPAREN);
-        }
-        eat(Type.SEMI);
-        AST.Block block_node = block();
-       AST.ProcedureDecl proc_decl = new AST.ProcedureDecl(proc_name,params, block_node);
-        declarations.add(proc_decl);
-        eat(Type.SEMI);
+    	AST.ProcedureDecl var_decl = procedure_declaration();
+        declarations.add(var_decl);
+    	
     }
     return declarations;
+	}
+	public AST.ProcedureDecl procedure_declaration(){
+	
+	    eat(Type.PROCEDURE);
+	    String proc_name = currToken.value;
+	  eat(Type.ID);
+	   ArrayList<AST.Param> params = new ArrayList<>() ;
+	   if(currToken.t==Type.LPAREN) {
+       	eat(Type.LPAREN);
+     
+       	params=formal_parameter_list();
+       	eat(Type.RPAREN);
+       }
+       eat(Type.SEMI);
+       AST.Block block_node = block();
+      AST.ProcedureDecl proc_decl = new AST.ProcedureDecl(proc_name,params, block_node);
+     
+       eat(Type.SEMI);
+	  
+	
+
+	    return proc_decl;
 	}
 	public ArrayList<AST.VarDecl> variable_declaration() {
 	   // """variable_declaration : ID (COMMA ID)* COLON type_spec"""
@@ -156,24 +189,31 @@ results.add(node);
 	        results.add(statement());
 	    }
 	    if (currToken.t == Type.ID) {
-	        error();
+	        error("", currToken);
 	    }
 	    return results;
 	}
 	public AST.Node statement() {
-	 
+		AST.Node node =null;
+		  
+		    
 	    if (currToken.t == Type.BEGIN) {
-	     AST.Compound   node = compound_statement();
-	        return node;
+	      node = compound_statement();
+	       
 	    }
-	        else if (currToken.t == Type.ID) {
-	       AST.Assign node = assignment_statement();
-	        return node;
-	        }
+	    else if (currToken.t == Type.ID &&
+		          lexer.curr == '(' ) {
+		        node = proccall_statement();
+	    }
+	    else if (currToken.t == Type.ID) {
+		        node = assignment_statement();
+	    }
+	       
 	        else {
-	      AST.NoOp  node = this.empty();
+	       node = this.empty();
 	        return node;
 	    }
+	    return node;
 	   
 }
 
@@ -197,13 +237,13 @@ results.add(node);
 	
 	    return new AST.NoOp();
 }
-	public void error() {
+	public void error(String error_code, Token tok) {
 		try {
-			throw new ParseException();
+			throw new ParserError(error_code, tok, error_code+" -> "+ tok.value);
 		}
-		catch(ParseException e){
-			System.out.println("hi");
-			System.out.println(e);
+		catch(ParserError e){
+	
+			System.out.println(e.message);
 		}
 	}
 	public void  eat(Type type) {
@@ -219,7 +259,7 @@ results.add(node);
 	    }
 	    else {
 	    System.out.println("hello "+type );
-	        error();
+	        error("UNEXPECTED_TOKEN", currToken);
 	    }
 	}
 	public AST.Node factor() {
@@ -301,7 +341,7 @@ results.add(node);
 	public AST.Program parse() {
 	   AST.Program node =program();
 	    	    if( currToken.t!= Type.EOF){
-	    	        error();
+	    	        error("FILE DOES NOT END", currToken);
 	    	    }
 	    	    return node;
 	}

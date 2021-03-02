@@ -15,13 +15,28 @@ Parser parser;
 	    }
 
 public static void main(String[] args) {
-	String input="PROGRAM Part12;" + 
-			"VAR" + 
-			"   x, y: REAL;"  + 
-			"PROCEDURE P1(a : INTEGER);" + 
-			"VAR " + 
-			"   y : INTEGER; BEGIN END; BEGIN END." 
-			;
+	String input="PROGRAM Main;"+ 
+			"PROCEDURE Alpha(a : INTEGER; b : INTEGER);" + 
+			"VAR x : INTEGER;" + 
+			"" + 
+			"   PROCEDURE Beta(a : INTEGER; b : INTEGER);" + 
+			"   VAR x : INTEGER;" + 
+			"   BEGIN " + 
+			"      x := a * 10 + b * 2;" + 
+			"   END; " + 
+			 
+			"BEGIN" + 
+			"   x := (a + b ) * 2;" + 
+			
+			"   Beta(5, 10);  " + 
+			"END; " + 
+			 
+			"BEGIN " + 
+		
+			"   Alpha(3 + 5, 7);   " + 
+			
+			"END.  ";
+			
 	Interpretor i= new Interpretor(new Parser(new Lexer(input)));
 i.interpret();
 /*

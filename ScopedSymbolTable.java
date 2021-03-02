@@ -35,16 +35,23 @@ public class ScopedSymbolTable {
 	}
 
 	public void define(Symbol symbol) {
-		System.out.println("Define:" + symbol);
+		System.out.println("Define:" + symbol+" "+scope_name);
+		symbol.scope_level=this.scope_level;
 		symbols.put(symbol.name, symbol);
 	}
 
-	public Symbol lookup(String name) {
-		System.out.println("Looking up: " + name);
+	public Symbol lookup(String name, boolean current_scope_only) {
+		System.out.println("Looking up: " + name+" "+ this.scope_name);
 		if (symbols.containsKey(name)) {
 			return symbols.get(name);
-		} else if(encl!=null) {
-			return encl.lookup(name);
+		}
+		else if(current_scope_only){
+			return null;
+		}
+		
+			else 	if(encl!=null) {
+		
+			return encl.lookup(name, false);
 		}
 		else {
 			return null;

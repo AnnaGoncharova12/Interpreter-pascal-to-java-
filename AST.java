@@ -4,7 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class AST {
-	static ScopedSymbolTable symtab = new ScopedSymbolTable("global", 1, null);
+	static CallStack stack = new CallStack();
+	 static ScopedSymbolTable symtab = new ScopedSymbolTable("global", 1, null);
 	static HashMap<String, Object> symbolTable = new HashMap<>();
 	static ScopedSymbolTable current_scope = null;
 
@@ -54,6 +55,55 @@ public class AST {
 				return 0;
 			}
 		}
+
+		public void error(String error_code, Token tok) {
+			try {
+				throw new SemanticError(error_code, tok, error_code + " ->" + tok.value);
+			} catch (SemanticError e) {
+				System.out.println(e.message);
+			}
+		}
+	}
+
+	static class ProcedureCall extends Node {
+		String proc_name;
+		ArrayList<Node> actual_params;
+		Token token;
+		ProcedureSymbol proc_symbol;
+
+		public ProcedureCall(String proc_name, ArrayList<Node> actual_params, Token token) {
+			this.proc_name = proc_name;
+			this.actual_params = actual_params;
+			this.token = token;
+			this.proc_symbol=null;
+		}
+
+		public Object visit() {
+			this.proc_symbol=(ProcedureSymbol)current_scope.lookup(proc_name, false);
+			ActivationRecord  ar = new ActivationRecord(proc_name,ARType.PROCEDURE,proc_symbol.scope_level + 1);
+			for (AST.Node p : actual_params) {
+				p.visit();
+			}
+			
+  ArrayList<VarSymbol> formal_params = proc_symbol.params;
+  for(int i=0;i<formal_params.size();i++) {
+		
+	  ar.__setitem__(formal_params.get(i).name, actual_params.get(i).visit());
+  }
+
+
+					    stack.push(ar);
+					    
+					    System.out.println("Enter procedure "+proc_name);
+					    System.out.println(stack);
+					    current_scope=proc_symbol.myScope;
+					    proc_symbol.block_ast.visit();
+					    System.out.println(stack);
+					    System.out.println("Leave procedure "+proc_name);
+					    stack.pop();
+					    current_scope = current_scope.encl;
+			return null;
+		}
 	}
 
 	static class Param extends Node {
@@ -70,41 +120,41 @@ public class AST {
 		String proc_name;
 		Block block_node;
 		ArrayList<Param> params;
-
+	
 		public ProcedureDecl(String proc_name, ArrayList<Param> params, Block block_node) {
 			this.proc_name = proc_name;
 			this.params = params;
 			this.block_node = block_node;
+			
 		}
 
-	public Object visit() {
-    	
-		ProcedureSymbol	 proc_symbol = new ProcedureSymbol(proc_name, null);
-    			   current_scope.define(proc_symbol);
+		public Object visit() {
+
+			ProcedureSymbol proc_symbol = new ProcedureSymbol(proc_name, null);
+			proc_symbol.block_ast=block_node;
+			current_scope.define(proc_symbol);
 //define vs insert not sure
-    			   System.out.println("ENTER scope: "+ proc_name);
-    			
-    			   ScopedSymbolTable  procedure_scope = new ScopedSymbolTable(
-    			       proc_name,
-    			       current_scope.scope_level+1,  current_scope
-    			    );
-    			  current_scope = procedure_scope;
+			System.out.println("ENTER scope: " + proc_name);
 
-    			   
-    			    for (Param param : params) {
-    			       Symbol param_type = current_scope.lookup(param.type_node.value);
-    			        String param_name = param.var_node.value;
-    			        		VarSymbol var_symbol = new VarSymbol(param_name, param_type);
-    			       current_scope.define(var_symbol);
-    			        proc_symbol.params.add(var_symbol);
-    			    }
-    			    this.block_node.visit();
+			ScopedSymbolTable procedure_scope = new ScopedSymbolTable(proc_name, current_scope.scope_level + 1,
+					current_scope);
+			current_scope = procedure_scope;
+			proc_symbol.myScope=procedure_scope;
 
-    			    System.out.println(procedure_scope);
-    			  System.out.println("LEAVE scope: "+proc_name);
-    			  current_scope= current_scope.encl;
-    			  return null;
-    }
+			for (Param param : params) {
+				Symbol param_type = current_scope.lookup(param.type_node.value, false);
+				String param_name = param.var_node.value;
+				VarSymbol var_symbol = new VarSymbol(param_name, param_type);
+				current_scope.define(var_symbol);
+				proc_symbol.params.add(var_symbol);
+			}
+			//this.block_node.visit();
+
+			System.out.println(procedure_scope);
+			System.out.println("LEAVE scope: " + proc_name);
+			current_scope = current_scope.encl;
+			return null;
+		}
 	}
 
 	static class Program extends Node {
@@ -116,20 +166,23 @@ public class AST {
 			this.block = block;
 		}
 
-	public Object visit() {
-    	  System.out.println("ENTER scope: global");
-    	  ScopedSymbolTable global_scope = new ScopedSymbolTable(
-    	       "global", 1, null
-    	    );
-    	    current_scope = global_scope;
-    	    		block.visit();
-    	  
-
-    	    		System.out.println(global_scope);
-    	    		System.out.println("LEAVE scope: global");
-    	    		 current_scope= current_scope.encl;
-    	 return null;
-    }
+		public Object visit() {
+			System.out.println("ENTER scope: global");
+			ScopedSymbolTable global_scope = new ScopedSymbolTable("global", 1, null);
+			ActivationRecord ar = new ActivationRecord(this.name, ARType.PROGRAM, 1);
+			System.out.println("Enter program "+name);
+			stack.push(ar);
+			System.out.println(stack);
+			current_scope = global_scope;
+			
+			block.visit();
+			System.out.println(stack);
+			stack.pop();
+			System.out.println(global_scope);
+			System.out.println("LEAVE scope: global");
+			current_scope = current_scope.encl;
+			return null;
+		}
 	}
 
 	static class Block extends Node {
@@ -142,6 +195,7 @@ public class AST {
 		}
 
 		public Object visit() {
+			System.out.println("start block visiting");
 			for (Node declaration : declarations) {
 				declaration.visit();
 			}
@@ -161,21 +215,24 @@ public class AST {
 
 		public Object visit() {
 			String type_name = type_node.value;
-			Symbol type_symbol = symtab.lookup(type_name);
+			Symbol type_symbol = symtab.lookup(type_name, false);
 			String var_name = var_node.value;
 			System.out.println(var_name);
 
-			
 			Symbol var_symbol = new VarSymbol(var_name, type_symbol);
+			if (current_scope.lookup(var_name, true) != null) {
+				error("Error: Duplicate identifier ", var_node.token);
+
+			}
 			current_scope.define(var_symbol);
 			Object val = (symtab.symbols.containsKey(var_name) ? symtab.symbols.get(var_name) : null);
+
 			/*
-			if (val != null) {
-				System.out.println("Error: Duplicate identifier " + var_name + "found");
-			}
-			*/
-			
-			symtab.define(var_symbol);
+			 * if (val != null) { System.out.println("Error: Duplicate identifier " +
+			 * var_name + "found"); }
+			 */
+
+			// symtab.define(var_symbol);
 			return null;
 		}
 	}
@@ -227,15 +284,12 @@ public class AST {
 		public Object visit() {
 
 			String var_name = value;
-			Symbol var_symbol = current_scope.lookup(var_name);
+			Symbol var_symbol = current_scope.lookup(var_name, false);
 			if (var_symbol == null) {
-				try {
-					throw new NameError(var_name);
-				} catch (NameError e) {
-					System.out.println(e + " has no been declared");
-				}
+				error("ID_NOT_FOUND", token);
+
 			}
-			Object val = (symbolTable.containsKey(var_name) ? symbolTable.get(var_name) : null);
+			Object val = (stack.peek().get(var_name));
 			if (val == null) {
 				try {
 					throw new NullPointerException();
@@ -265,7 +319,8 @@ public class AST {
 		public Integer visit() {
 
 			String var_name = left.value;
-			Symbol var_symbol = symtab.lookup(var_name);
+			//Symbol var_symbol = symtab.lookup(var_name, false);
+			Symbol var_symbol = current_scope.lookup(var_name, false);
 			if (var_symbol == null) {
 				try {
 					throw new NameError(var_name);
@@ -273,7 +328,9 @@ public class AST {
 					System.out.println(e);
 				}
 			}
-			symbolTable.put(var_name, right.visit());
+			Object var_value=right.visit();
+			stack.peek().__setitem__(var_name, var_value);
+			symbolTable.put(var_name, var_value);
 			return null;
 		}
 	}

@@ -2,15 +2,19 @@ package interpretor;
 
 public class Lexer {
 	String text;
-	int pos;
+	int pos,lineno, column;
 	char curr;
+	TokenType map;
 	public Lexer(String text) {
+		map= new TokenType();
 		this.text=text;
 		pos=0;
 	
 		if(text.length()!=0) {
 		curr=text.charAt(pos);
 		}
+		   lineno = 1;
+			        column = 1;
 	}
 	public char peek() {
 	   int peek_pos = this.pos + 1;
@@ -66,20 +70,27 @@ public class Lexer {
 	    return token;
 	}
 	public void error() {
+		String message="Lexer error on "+ curr+" line: "+lineno
+				+ " column: " +column;
 		try {
-			throw new InvalidCharacterException();
+			throw new LexerError("", null, message);
 		}
-		catch(InvalidCharacterException e){
-			System.out.println(e);
+		catch(LexerError e){
+			System.out.println(message);
 		}
 	}
 	public void advance(){
+		 if (curr == '\n'){
+		        lineno += 1;
+		        column = 0;
+		 }
 	    pos++;
 	    if (this.pos > this.text.length() - 1) {
 	        curr='#';
 	    }
 	    else {
 	        this.curr = text.charAt(pos);
+	        column++;
 	    }
 	}
 	public void skip_whitespace() {
@@ -124,15 +135,28 @@ public class Lexer {
 	           skip_whitespace();
 	           continue;
 	        }
+	    	String charStr="";
+	    	charStr+=curr;
 	    	 if (Character.isLetter(curr)){
 	             return _id();
 	    	 }
+	    	 else	 if (Character.isDigit(curr)) {
+	             return number();
+	    }
+	    	 
 	             else  if (curr == ':' &&peek() == '='){
 	             advance();
 	            advance();
 	            String str=":=";
 	             return new Token(Type.ASSIGN, str);
 	             }
+	             else if(map.hm1.containsKey(charStr)) {
+	            	 
+	            	 Token h= new Token(map.hm1.get(charStr), charStr,lineno, column);
+	            	 advance();
+	            	 return h;
+	             }
+	    	 /*
 	             else   if (curr == ';') {
 	             advance();
 	             String str=";";
@@ -180,9 +204,7 @@ public class Lexer {
 	             skip_comment();
 	     
                 }
-                else	 if (Character.isDigit(curr)) {
-	             return number();
-	    }
+               
        
 
                 else if (curr== ':'){
@@ -201,7 +223,7 @@ public class Lexer {
 	              String str="/";
 	              return new Token(Type.FLOAT_DIV, str);
                 }
-	         
+	         */
 	        else {
 	        	this.error();
 	        }
